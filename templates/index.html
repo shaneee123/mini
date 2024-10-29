@@ -1,0 +1,56 @@
+<html>
+    <head>
+        <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    </head>
+    <body>
+        <h2>Record and Upload Audio for Transcription</h2>
+        <button id="recordButton">Start Recording</button>
+        <button id="stopButton" disabled>Stop Recording</button>
+        <audio id="audioPlayback" controls></audio>
+        <h3>Transcribed Text:</h3>
+        <div id="transcriptionResult" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px;"></div>
+        <script>
+            let mediaRecorder;
+            let audioChunks = [];
+
+            document.getElementById('recordButton').onclick = async () => {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    audioChunks = [];
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    document.getElementById('audioPlayback').src = audioUrl;
+
+                    const formData = new FormData();
+                    formData.append('file', audioBlob, 'recording.wav');
+
+                    // Send audio data to the server
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+
+                    // Display the transcribed text on the page
+                    document.getElementById('transcriptionResult').innerText = result.transcribed_text;
+                };
+
+                mediaRecorder.start();
+                document.getElementById('recordButton').disabled = true;
+                document.getElementById('stopButton').disabled = false;
+            };
+
+            document.getElementById('stopButton').onclick = () => {
+                mediaRecorder.stop();
+                document.getElementById('recordButton').disabled = false;
+                document.getElementById('stopButton').disabled = true;
+            };
+        </script>
+    </body>
+</html>
