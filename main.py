@@ -5,6 +5,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi import Request
 from transformers import pipeline
 import os
+from groq import Groq
+import asyncio
 
 app = FastAPI()
 
@@ -16,6 +18,11 @@ templates = Jinja2Templates(directory="templates")
 
 # Whisper 모델 로드
 transcriber = pipeline(model="openai/whisper-large", task="automatic-speech-recognition")
+
+# Groq client 설정
+client = Groq(
+    api_key="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"
+)
 
 @app.get("/", response_class=HTMLResponse)
 async def get_form(request: Request):
@@ -35,10 +42,35 @@ async def upload_audio(file: UploadFile = File(...)):
     # 파일 삭제 (필요한 경우)
     os.remove(file_location)
 
+    # Groq API로 텍스트 감정 분석 요청
+    completion = client.chat.completions.create(
+        model="llama3-8b-8192",
+        messages=[
+            {
+                "role": "user",
+                "content": f"can you determine if the following sentence includes if the speaker ate medicine or not? if yes, please say positive, if not, response as negative '{text}'"
+            }
+        ],
+        temperature=1,
+        max_tokens=1024,
+        top_p=1,
+        stream=True,
+        stop=None,
+    )
+
+    # 결과 텍스트 생성
+    result_text = ""
+    for chunk in completion:
+        result_text += chunk.choices[0].delta.content or ""
+
     # 터미널에 출력
     print("Transcribed Text:", text)
+    print("Sentiment Analysis Result:", result_text)
 
-    return {"transcribed_text": text}
+    return {
+        "transcribed_text": text,
+        "sentiment_analysis_result": result_text
+    }
 
 if __name__ == "__main__":
     import uvicorn
