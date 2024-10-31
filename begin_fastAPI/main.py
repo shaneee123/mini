@@ -6,49 +6,50 @@ from fastapi import Request
 from transformers import pipeline
 import os
 from groq import Groq
-import asyncio
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# Serve static files from the 'static' directory
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Set up template directory
-templates = Jinja2Templates(directory="templates")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Adjust this to your frontend's URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Whisper 모델 로드
+
+# Load the Whisper model for ASR
 transcriber = pipeline(model="openai/whisper-large", task="automatic-speech-recognition")
 
-# Groq client 설정
+# Set up Groq client
 client = Groq(
     api_key="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"
 )
 
-@app.get("/", response_class=HTMLResponse)
-async def get_form(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
 @app.post("/upload")
 async def upload_audio(file: UploadFile = File(...)):
-    # 파일 저장
+    # Save the uploaded file
     file_location = f"temp/{file.filename}"
+    os.makedirs(os.path.dirname(file_location), exist_ok=True)  # Create temp directory if it doesn't exist
     with open(file_location, "wb") as f:
         f.write(await file.read())
 
-    # 음성 파일에서 텍스트 추출
+    # Transcribe audio to text
     result = transcriber(file_location)
     text = result["text"]
 
-    # 파일 삭제 (필요한 경우)
+    # Delete the temporary file
     os.remove(file_location)
 
-    # Groq API로 텍스트 감정 분석 요청
+    # Request sentiment analysis from Groq API
     completion = client.chat.completions.create(
         model="llama3-8b-8192",
         messages=[
             {
                 "role": "user",
-                "content": f"can you determine if the following sentence includes if the speaker ate medicine or not on the mentioned date? if yes, please say positive, if not, response as negative. I want the response only to be positive or negative with the date. '{text}'"
+                "content": f"Can you determine if the following sentence includes if the speaker ate medicine or not on the mentioned date? If yes, please say 'positive', if not, respond with 'negative'. I want the response only to be 'positive' or 'negative' with the date: '{text}'"
             }
         ],
         temperature=1,
@@ -58,12 +59,12 @@ async def upload_audio(file: UploadFile = File(...)):
         stop=None,
     )
 
-    # 결과 텍스트 생성
+    # Generate result text from Groq completion
     result_text = ""
     for chunk in completion:
         result_text += chunk.choices[0].delta.content or ""
 
-    # 터미널에 출력
+    # Log the results
     print("Transcribed Text:", text)
     print("Sentiment Analysis Result:", result_text)
 
