@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
+import './App.css'
 
 function App() {
   const [date, setDate] = useState(new Date());
@@ -8,7 +9,7 @@ function App() {
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioURL, setAudioURL] = useState("");
   const [transcription, setTranscription] = useState("");
-  const [sentimentAnalysis, setSentimentAnalysis] = useState(""); // State for sentiment analysis result
+  const [sentimentData, setSentimentData] = useState({}); // Store sentiment data by date
   const mediaRecorder = useRef(null);
 
   useEffect(() => {
@@ -29,13 +30,11 @@ function App() {
       };
 
       mediaRecorder.current.start();
-      setIsRecording(true);
     };
 
     const stopRecording = () => {
       if (mediaRecorder.current) {
         mediaRecorder.current.stop();
-        setIsRecording(false);
         audioChunks = [];
       }
     };
@@ -47,7 +46,7 @@ function App() {
     }
 
     return () => {
-      if (mediaRecorder.current && mediaRecorder.current.state !== "inactive") {
+      if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
         mediaRecorder.current.stop();
       }
     };
@@ -61,11 +60,11 @@ function App() {
     if (!audioBlob) return;
 
     const formData = new FormData();
-    formData.append("file", audioBlob, "recording.wav");
+    formData.append('file', audioBlob, 'recording.wav');
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/upload", {
-        method: "POST",
+      const response = await fetch('http://127.0.0.1:8000/upload', {
+        method: 'POST',
         body: formData,
       });
 
@@ -74,51 +73,55 @@ function App() {
       }
 
       const data = await response.json();
-      console.log("Server response data:", data);
+      console.log('Server response data:', data);
 
-      // Set both transcription and sentiment analysis results
-      setTranscription(data.transcribed_text || "No transcription available.");
-      setSentimentAnalysis(data.sentiment_analysis_result || "No sentiment analysis result available.");
+      // Update transcription and sentiment analysis result
+      setTranscription(data.transcribed_text || 'No transcription available.');
+
+      // Store the sentiment result with the current date in sentimentData state
+      setSentimentData((prevData) => {
+        const updatedData = { ...prevData };
+        if (data.sentiment_analysis_result.toLowerCase() === 'positive') {
+          updatedData[date.toDateString()] = 'positive';
+        } else {
+          delete updatedData[date.toDateString()]; // Remove negative or neutral sentiment
+        }
+        return updatedData;
+      });
     } catch (error) {
-      console.error("Error sending audio to server:", error);
-      setTranscription("Error transcribing audio.");
-      setSentimentAnalysis("Error retrieving sentiment analysis.");
+      console.error('Error sending audio to server:', error);
+      setTranscription('Error transcribing audio.');
     }
+  };
+
+  // Render image on calendar tiles based on sentimentData
+  const tileContent = ({ date }) => {
+    const sentiment = sentimentData[date.toDateString()];
+    if (sentiment === 'positive') {
+      return <img src="/images/faceCharacter.png" alt="positive" style={{ width: '20px', height: '20px' }} />;
+    }
+    return null;
   };
 
   return (
     <div>
-      <h1>Hello, welcome!</h1>
-      <Calendar onChange={setDate} value={date} />
+      <h1>꾸기의 플래너</h1>
+      <Calendar onChange={setDate} value={date} locale="en-US" 
+        tileContent={tileContent} 
+         // Set calendar to start on Sunday and end on Saturday
+      />
 
-      <button onClick={handleRecording}>
-        {isRecording ? "Stop Recording" : "Start Recording"}
+      <button className="button" onClick={handleRecording}>
+        {isRecording ? 'STOP' : 'RECORD'}
       </button>
-      <button onClick={sendAudioToServer} disabled={!audioBlob}>
-        Send Recording
+      <button className="button" onClick={sendAudioToServer} disabled={!audioBlob}>
+        SEND
       </button>
-
-      {/* Audio player for the recorded file */}
-      {audioURL && (
-        <div>
-          <h3>Recorded Audio:</h3>
-          <audio controls src={audioURL}></audio>
-        </div>
-      )}
 
       {/* Display transcription result */}
       {transcription && (
         <div>
-          <h3>Transcription:</h3>
           <p>{transcription}</p>
-        </div>
-      )}
-
-      {/* Display sentiment analysis result */}
-      {sentimentAnalysis && (
-        <div>
-          <h3>Sentiment Analysis Result:</h3>
-          <p>{sentimentAnalysis}</p>
         </div>
       )}
     </div>

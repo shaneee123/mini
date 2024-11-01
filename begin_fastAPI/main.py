@@ -49,7 +49,7 @@ async def upload_audio(file: UploadFile = File(...)):
         messages=[
             {
                 "role": "user",
-                "content": f"Can you determine if the following sentence includes if the speaker ate medicine or not on the mentioned date? If yes, please say 'positive', if not, respond with 'negative'. I want the response only to be 'positive' or 'negative' with the date: '{text}'"
+                "content": f"please determine if the speaker ate the medicine or not. If yes, please say 'positive', if not, respond with 'negative'. I want the response only to be 'positive' or 'negative' '{text}'"
             }
         ],
         temperature=1,
