@@ -3,8 +3,12 @@ from transformers import pipeline
 import os
 from groq import Groq
 from fastapi.middleware.cors import CORSMiddleware
-import json  # JSON 파싱을 위한 모듈 추가
-import re  # 날짜 형식 검사 및 수정용
+import json
+import re
+from dotenv import load_dotenv  # 환경 변수 로드용 모듈
+
+# .env 파일의 환경 변수 로드
+load_dotenv()
 
 app = FastAPI()
 
@@ -19,16 +23,14 @@ app.add_middleware(
 # Load the Whisper model for ASR
 transcriber = pipeline(model="openai/whisper-large", task="automatic-speech-recognition")
 
-# Set up Groq client
-client = Groq(
-    api_key="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"
-)
+# Set up Groq client with API key from environment variable
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 @app.post("/upload")
 async def upload_audio(file: UploadFile = File(...)):
     # Save the uploaded file
     file_location = f"temp/{file.filename}"
-    os.makedirs(os.path.dirname(file_location), exist_ok=True)  # Create temp directory if it doesn't exist
+    os.makedirs(os.path.dirname(file_location), exist_ok=True)
     with open(file_location, "wb") as f:
         f.write(await file.read())
 
@@ -73,19 +75,17 @@ async def upload_audio(file: UploadFile = File(...)):
 
     # Parse the result JSON and add default year to the date
     try:
-        parsed_result = json.loads(result_json)  # JSON 문자열을 파싱
+        parsed_result = json.loads(result_json)
 
-        # 날짜가 MM-DD 형식이라면 2024년을 추가
         if parsed_result.get("mentioned_date"):
             if re.match(r"^\d{2}-\d{2}$", parsed_result["mentioned_date"]):
                 parsed_result["mentioned_date"] = f"2024-{parsed_result['mentioned_date']}"
 
-        print("Parsed Sentiment Analysis Result:", parsed_result)  # 터미널에 JSON 출력
+        print("Parsed Sentiment Analysis Result:", parsed_result)
 
     except json.JSONDecodeError:
-        print("Failed to parse JSON response:", result_json)  # JSON 파싱 실패 시 출력
+        print("Failed to parse JSON response:", result_json)
 
-    # Log the results for debugging
     print("Transcribed Text:", text)
     print("Sentiment Analysis Result (Raw JSON):", result_json)
 
